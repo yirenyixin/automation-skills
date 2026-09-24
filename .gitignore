@@ -1,0 +1,19 @@
+# Local credentials and account configuration
+email/**/config/config.json
+email/**/config/account.json
+email/**/config/oauth-client.json
+email/**/config/token.json
+
+# Per-request mailbox data and generated output
+**/workspaces/
+**/logs/
+**/outputs/
+
+# Python caches and test artifacts
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local IDE settings and review artifacts
+.idea/
+review-reports/

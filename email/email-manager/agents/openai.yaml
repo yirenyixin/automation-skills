@@ -1,0 +1,7 @@
+interface:
+  display_name: "邮箱总路由"
+  short_description: "识别邮箱服务商并路由到独立操作 skill"
+  default_prompt: "使用 $email-manager 判断我的邮件任务应由哪个邮箱服务商 skill 执行。"
+
+policy:
+  allow_implicit_invocation: true

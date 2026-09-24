@@ -1,0 +1,7 @@
+interface:
+  display_name: "Qqmail"
+  short_description: "管理 QQ 邮箱的独立接入与操作边界"
+  default_prompt: "使用 $qqmail 说明 QQ 邮箱操作所需的本地授权与配置。"
+
+policy:
+  allow_implicit_invocation: true

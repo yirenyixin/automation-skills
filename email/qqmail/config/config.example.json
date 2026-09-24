@@ -1,0 +1,16 @@
+{
+  "smtp": {
+    "host": "smtp.qq.com",
+    "port": 465,
+    "use_ssl": true
+  },
+  "imap": {
+    "host": "imap.qq.com",
+    "port": 993,
+    "use_ssl": true
+  },
+  "account": {
+    "email": "your-qq-address@qq.com",
+    "authorization_code": "replace-with-qq-mail-authorization-code"
+  }
+}

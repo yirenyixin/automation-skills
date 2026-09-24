@@ -1,0 +1,20 @@
+{
+  "smtp": {
+    "host": "smtp.exmail.qq.com",
+    "port": 465,
+    "use_ssl": true
+  },
+  "imap": {
+    "host": "imap.exmail.qq.com",
+    "port": 993,
+    "use_ssl": true
+  },
+  "account": {
+    "email": "your.name@your-company.com",
+    "password": "replace-with-your-mail-password-or-app-password"
+  },
+  "sender": {
+    "display_name": "",
+    "reply_to": ""
+  }
+}

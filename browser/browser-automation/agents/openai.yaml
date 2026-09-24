@@ -1,0 +1,4 @@
+interface:
+  display_name: "浏览器自动化"
+  short_description: "执行可验证的 Edge 或 Chrome 浏览器工作流"
+  default_prompt: "使用 $browser-automation 在隔离且带版本记录的运行工作区中完成此浏览器任务。"

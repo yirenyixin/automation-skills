@@ -1,0 +1,7 @@
+interface:
+  display_name: "腾讯企业邮箱"
+  short_description: "在隔离工作区安全收发、筛选和归档腾讯企业邮件"
+  default_prompt: "使用 $tencent-exmail 按任务规则筛选腾讯企业邮箱邮件，并仅总结匹配结果。"
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+config/oauth-client.json
+config/token.json
+config/account.json
+logs/
+workspaces/**/logs/
+workspaces/**/outputs/
+workspaces/**/downloads/

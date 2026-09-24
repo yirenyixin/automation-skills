@@ -1,0 +1,5 @@
+config/config.json
+logs/
+workspaces/**/logs/
+workspaces/**/outputs/
+workspaces/**/downloads/

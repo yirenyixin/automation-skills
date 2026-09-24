@@ -1,0 +1,7 @@
+config/config.json
+*.log
+__pycache__/
+*.pyc
+workspaces/**/logs/
+workspaces/**/downloads/
+workspaces/**/outputs/
