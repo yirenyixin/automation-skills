@@ -1,21 +1,26 @@
 ---
-name: mysql-readonly
-description: 通过脚本强制执行的只读策略安全检查和查询 MySQL 数据库。适用于 MySQL 连通性、结构发现和数据查询；不可用于修改数据。
+name: mysql-controlled-agent
+description: 通过隔离工作区、运行审计和显式确认机制安全检查、查询及受控变更 MySQL。适用于结构发现、只读查询和经用户确认的 DML/DDL；不应绕过生产变更流程。
 ---
 
-# MySQL 只读查询
+# MySQL 受控操作
 
-所有数据库操作都使用 `scripts/mysql_agent.py`。该脚本向 stdout 返回 JSON；应根据 `ok`、`data`、`meta` 和 `error` 字段判断结果，而不是解析自由文本错误信息。
+所有操作使用 `scripts/mysql_agent.py`，SQL 由 Agent 写入本地文件，参数由 JSON 文件提供。脚本输出 JSON；根据 `ok`、`data`、`meta` 和 `error` 决策，不能解析自由文本错误。
 
-## 工作流
+## 强制工作流
 
-1. 连接信息可能不完整时，操作前运行 `config validate`；首次使用某个连接前运行 `ping`。配置来自 `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD` 以及可选的 `MYSQL_DATABASE`。绝不打印或持久化密码。
-2. 查询未知数据前，使用 `list-databases`、`list-tables` 和 `describe-table` 发现库表结构。不得猜测表名或列名。
-3. 将单条参数化 `SELECT`（或 `WITH ... SELECT`）写入本地 SQL 文件，将参数值写入 JSON 文件。对可能范围较大的查询先使用 `explain`，再以有界的 `--limit` 执行 `query`。
-4. `truncated: true` 表示结果不完整。应缩小范围或分页查询，不得假设已返回全部结果。
+1. 在独立目录运行 `workspace init --workspace-dir <dir>`。不要在原项目目录生成 SQL、导出或日志。该目录中的 `.mysql-agent/` 保存运行审计、输入归档、确认记录和回滚工件；Git 可用时记录基线版本。
+2. 对未知对象，先读取数据库、表、视图、例程定义和列结构，禁止猜测标识符。
+3. 查询使用 `query`、`explain` 和最小必要 `--limit`。大范围查询先执行 `explain`，并检查 `truncated`。
+4. 变更必须先使用 `preview`。高/极高风险预览会创建一次性确认令牌；向用户展示目标环境、对象、SQL 摘要、风险、影响范围及回滚方式后，才可请求确认。
+5. 高/极高风险操作必须使用匹配的 `run-id`、`confirmation_id`、回滚 SQL 文件和 `--commit`。SQL、参数、环境或令牌过期后都必须重新预览。
+6. 失败的事务执行会回滚。提交后的 DML 仅能通过归档的补偿 SQL 恢复；遇到隐式提交 DDL 或 `TRUNCATE`，没有已验证备份和人工恢复方案则拒绝执行。
 
-CLI 会拒绝写操作、多语句、注释、锁定子句、文件函数、用户变量和无界输出。它不能替代只授予 `SELECT` 权限的 MySQL 账号。
+## 风险
 
-写入、权限变更、创建凭据或连接生产系统均需用户明确授权。此初版 skill 不提供写操作命令。
+- 低：元数据读取、有界查询和执行计划。
+- 中：INSERT、REPLACE、CREATE 等可评估变更。
+- 高：UPDATE、DELETE、ALTER；必须确认和回滚方案。
+- 极高：DROP、TRUNCATE、账户与授权变更；必须确认、备份与回滚/人工恢复方案。
 
-配置连接时阅读[配置说明](references/configuration.md)；准备查询或理解拒绝原因时阅读[查询策略](references/query-policy.md)。
+不得把确认令牌复用于不同 SQL、参数或环境。默认拒绝无 `WHERE` 的 UPDATE/DELETE、不可逆删除和权限变更；数据库最小权限、备份和生产审批仍是必要前提。

@@ -1,6 +1,4 @@
-config/oauth-client.json
-config/token.json
-config/account.json
+config/imap-smtp.local.json
 logs/
 workspaces/**/logs/
 workspaces/**/outputs/

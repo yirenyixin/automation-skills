@@ -1,7 +1,7 @@
 interface:
   display_name: "Gmail"
-  short_description: "管理 Gmail 的独立授权与操作边界"
-  default_prompt: "使用 $gmail 说明 Gmail 邮箱操作所需的本地 OAuth 授权与配置。"
+  short_description: "使用应用专用密码管理 Gmail"
+  default_prompt: "使用 $gmail 说明 Gmail 应用专用密码配置和邮件操作。"
 
 policy:
   allow_implicit_invocation: true

@@ -1,0 +1,6 @@
+{
+  "gmail_address": "you@gmail.com",
+  "app_password": "your Google app password",
+  "imap": {"host": "imap.gmail.com", "port": 993},
+  "smtp": {"host": "smtp.gmail.com", "port": 465}
+}

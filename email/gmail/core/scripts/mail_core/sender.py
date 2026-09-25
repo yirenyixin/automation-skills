@@ -9,7 +9,14 @@ from pathlib import Path
 
 from .common import fail
 from .auth import smtp_login
+from .proxy import open_tls_socket
 
+
+class ProxySMTP_SSL(smtplib.SMTP_SSL):
+    def _get_socket(self, host, port, timeout):
+        if self.debuglevel > 0:
+            self._print_debug("connect:", (host, port))
+        return open_tls_socket(host, port, timeout)
 
 def _addresses(values: list[str], label: str) -> list[str]:
     result = [item.strip() for value in values for item in value.split(",") if item.strip()]
@@ -48,16 +55,19 @@ def send(config: dict, args, workspace: Path) -> dict:
         major, minor = (mime or "application/octet-stream").split("/", 1)
         message.add_attachment(item.read_bytes(), maintype=major, subtype=minor, filename=item.name)
     try:
-        with smtplib.SMTP_SSL(smtp["host"], int(smtp["port"]), context=ssl.create_default_context(), timeout=args.timeout) as client:
+        with ProxySMTP_SSL(smtp["host"], int(smtp["port"]), context=ssl.create_default_context(), timeout=args.timeout) as client:
             smtp_login(client, config)
             client.send_message(message, from_addr=account["email"], to_addrs=list(dict.fromkeys(to + cc + bcc)))
     except smtplib.SMTPRecipientsRefused:
         fail("SMTP 拒绝一个或多个收件人。请核对收件人地址或投递权限。")
     except smtplib.SMTPAuthenticationError:
-        fail("Gmail SMTP OAuth 认证失败。请检查授权范围和本地令牌。")
+        fail("Gmail SMTP 应用专用密码认证失败。请检查本地配置、两步验证和应用专用密码。")
     except smtplib.SMTPException:
-        fail("Gmail SMTP 协议或服务器拒绝操作。请检查邮件内容、OAuth 授权和服务权限。")
+        fail("Gmail SMTP 协议或服务器拒绝操作。请检查邮件内容、应用专用密码和服务权限。")
     except OSError:
         fail("SMTP 网络或连接失败。请检查网络、服务器地址和端口。")
     result.update({"status": "submitted", "message_id": message["Message-ID"]})
     return result
+
+
+

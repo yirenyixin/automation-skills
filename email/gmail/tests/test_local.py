@@ -8,7 +8,6 @@ import sys
 import tempfile
 import unittest
 import json
-import time
 from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import patch
@@ -53,18 +52,18 @@ class RefusingSMTP(FakeSMTP):
         raise smtplib.SMTPRecipientsRefused({"secret-bcc@example.com": (550, b"rejected")})
 
 
-class OAuthRejectingIMAP(FakeIMAP):
-    def authenticate(self, *_): return "NO", []
+class AppPasswordRejectingIMAP(FakeIMAP):
+    def login(self, *_): return "NO", []
 
 
 class MailTests(unittest.TestCase):
-    config = {"account": {"email": "me@gmail.com"}, "smtp": {"host": "localhost", "port": 465}, "imap": {"host": "localhost", "port": 993}, "oauth": {"client": {}, "token": {"access_token": "test-token", "expires_at": time.time() + 3600}, "token_path": Path("unused-token.json")}}
+    config = {"account": {"email": "me@gmail.com"}, "app_password": "test-app-password", "smtp": {"host": "localhost", "port": 465}, "imap": {"host": "localhost", "port": 993}}
 
     def test_smtp_preview_and_submission(self):
         args = argparse.Namespace(to=["you@example.com"], cc=[], bcc=[], subject="Test", text="Body", html=None, attachment=[], max_attachment_mb=20, timeout=1, confirm_send=False)
         self.assertEqual(send(self.config, args, Path.cwd())["status"], "preview")
         args.confirm_send = True
-        with patch("mail_core.sender.smtplib.SMTP_SSL", return_value=FakeSMTP()):
+        with patch("mail_core.sender.ProxySMTP_SSL", return_value=FakeSMTP()):
             self.assertEqual(send(self.config, args, Path.cwd())["status"], "submitted")
 
     def test_imap_rule_search(self):
@@ -73,7 +72,7 @@ class MailTests(unittest.TestCase):
             (workspace / "manifest.json").write_text("{}", encoding="utf-8")
             (workspace / "rules").mkdir()
             (workspace / "rules" / "invoice.json").write_text('{"filters": {"from_contains": "finance", "subject_contains": "invoice"}}', encoding="utf-8")
-            with patch("mail_core.reader.imaplib.IMAP4_SSL", return_value=FakeIMAP()):
+            with patch("mail_core.reader.ProxyIMAP4_SSL", return_value=FakeIMAP()):
                 result = search(self.config, workspace, "rules/invoice.json", 10, include_body=True)
             self.assertEqual(result[0]["uid"], "9")
             self.assertEqual(result[0]["text_preview"], "Test message")
@@ -91,7 +90,7 @@ class MailTests(unittest.TestCase):
             (workspace / "manifest.json").write_text("{}", encoding="utf-8")
             (workspace / "rules").mkdir()
             (workspace / "rules" / "html.json").write_text("{\"filters\": {}}", encoding="utf-8")
-            with patch("mail_core.reader.imaplib.IMAP4_SSL", return_value=fake):
+            with patch("mail_core.reader.ProxyIMAP4_SSL", return_value=fake):
                 result = search(self.config, workspace, "rules/html.json", 10, include_body=True, full_body=True)
             self.assertIn("登录提醒", result[0]["text"])
             self.assertNotIn("display", result[0]["text"])
@@ -122,7 +121,7 @@ class MailTests(unittest.TestCase):
 
     def test_invalid_limits_do_not_create_imap_connection(self):
         for limit in (0, -1, True):
-            with patch("mail_core.reader.imaplib.IMAP4_SSL") as connection:
+            with patch("mail_core.reader.ProxyIMAP4_SSL") as connection:
                 with self.assertRaisesRegex(ValueError, "结果上限必须是正整数"):
                     search(self.config, Path.cwd(), "rules/unused.json", limit)
                 connection.assert_not_called()
@@ -133,14 +132,14 @@ class MailTests(unittest.TestCase):
             (workspace / "manifest.json").write_text("{}", encoding="utf-8")
             (workspace / "rules").mkdir()
             (workspace / "rules" / "test.json").write_text('{"filters": {}}', encoding="utf-8")
-            with patch("mail_core.reader.imaplib.IMAP4_SSL", side_effect=OSError("imap.internal.example:993")):
+            with patch("mail_core.reader.ProxyIMAP4_SSL", side_effect=OSError("imap.internal.example:993")):
                 with self.assertRaisesRegex(ValueError, "IMAP 网络或连接失败") as error:
                     search(self.config, workspace, "rules/test.json", 1)
             self.assertNotIn("imap.internal.example", str(error.exception))
 
     def test_smtp_bcc_error_is_sanitized_before_audit(self):
         args = argparse.Namespace(to=["to@example.com"], cc=[], bcc=["secret-bcc@example.com"], subject="Test", text="Body", html=None, attachment=[], max_attachment_mb=20, timeout=1, confirm_send=True)
-        with patch("mail_core.sender.smtplib.SMTP_SSL", return_value=RefusingSMTP()):
+        with patch("mail_core.sender.ProxySMTP_SSL", return_value=RefusingSMTP()):
             with self.assertRaisesRegex(ValueError, "SMTP 拒绝一个或多个收件人") as error:
                 send(self.config, args, Path.cwd())
         self.assertNotIn("secret-bcc@example.com", str(error.exception))
@@ -155,12 +154,12 @@ class MailTests(unittest.TestCase):
             (workspace / "manifest.json").write_text("{}", encoding="utf-8")
             (workspace / "rules").mkdir()
             (workspace / "rules" / "test.json").write_text('{"filters": {}}', encoding="utf-8")
-            with patch("mail_core.reader.imaplib.IMAP4_SSL", side_effect=[FakeIMAP(), OSError("private-host")]):
+            with patch("mail_core.reader.ProxyIMAP4_SSL", side_effect=[FakeIMAP(), OSError("private-host")]):
                 with self.assertRaisesRegex(ValueError, "IMAP 网络或连接失败") as error:
                     download(self.config, workspace, "rules/test.json", workspace / "downloads", False, True, 1)
             self.assertNotIn("private-host", str(error.exception))
 
-    def test_missing_gmail_config_and_oauth_rejection_are_safe(self):
+    def test_missing_gmail_config_and_app_password_rejection_are_safe(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "gmail"
             (root / "config").mkdir(parents=True)
@@ -172,11 +171,14 @@ class MailTests(unittest.TestCase):
             (workspace / "manifest.json").write_text("{}", encoding="utf-8")
             (workspace / "rules").mkdir()
             (workspace / "rules" / "test.json").write_text('{"filters": {}}', encoding="utf-8")
-            with patch("mail_core.reader.imaplib.IMAP4_SSL", return_value=OAuthRejectingIMAP()):
-                with self.assertRaisesRegex(ValueError, "Gmail IMAP OAuth 认证失败") as error:
+            with patch("mail_core.reader.ProxyIMAP4_SSL", return_value=AppPasswordRejectingIMAP()):
+                with self.assertRaisesRegex(ValueError, "Gmail IMAP 应用专用密码认证失败") as error:
                     search(self.config, workspace, "rules/test.json", 1)
-            self.assertNotIn("test-token", str(error.exception))
+            self.assertNotIn("test-app-password", str(error.exception))
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

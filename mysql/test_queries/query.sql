@@ -1,0 +1,1 @@
+SELECT MAX(total_revenue) AS max_single_order, MIN(total_revenue) AS min_single_order, AVG(total_revenue) AS avg_order_value, COUNT(*) AS total_orders, SUM(quantity_sold) AS total_qty FROM sales_records WHERE YEAR(sale_date) = 2026

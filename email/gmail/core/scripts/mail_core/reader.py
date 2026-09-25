@@ -13,7 +13,15 @@ from pathlib import Path
 
 from .common import fail, load_json, safe_child
 from .auth import imap_login
+from .proxy import open_tls_socket
 
+
+class ProxyIMAP4_SSL(imaplib.IMAP4_SSL):
+    def open(self, host: str = "", port: int = imaplib.IMAP4_SSL_PORT, timeout=None) -> None:
+        self.host = host
+        self.port = port
+        self.sock = open_tls_socket(host, port, timeout)
+        self.file = self.sock.makefile("rb")
 
 def require_positive_limit(value: object, label: str = "结果上限") -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -158,7 +166,7 @@ def search_with_metadata(config: dict, workspace: Path, rule_name: str, limit: i
     imap, account = config["imap"], config["account"]
     client = None
     try:
-        client = imaplib.IMAP4_SSL(imap["host"], int(imap["port"]), ssl_context=ssl.create_default_context(), timeout=30)
+        client = ProxyIMAP4_SSL(imap["host"], int(imap["port"]), timeout=30)
         imap_login(client, config)
         status, _ = client.select(rule.get("mailbox", "INBOX"), readonly=True)
         if status != "OK":
@@ -215,7 +223,7 @@ def download(config: dict, workspace: Path, rule_name: str, destination: Path, a
     imap, account = config["imap"], config["account"]
     client = None
     try:
-        client = imaplib.IMAP4_SSL(imap["host"], int(imap["port"]), ssl_context=ssl.create_default_context(), timeout=30)
+        client = ProxyIMAP4_SSL(imap["host"], int(imap["port"]), timeout=30)
         imap_login(client, config)
         status, _ = client.select(rule.get("mailbox", "INBOX"), readonly=True)
         if status != "OK":
@@ -244,3 +252,5 @@ def download(config: dict, workspace: Path, rule_name: str, destination: Path, a
                 client.logout()
             except Exception:
                 pass
+
+

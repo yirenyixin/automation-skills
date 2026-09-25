@@ -13,6 +13,11 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+try:
+    from mysql_workspace import controlled_execute, init_workspace, preview, rollback_info, workspace_root, workspace_snapshot, workspace_status
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from mysql_workspace import controlled_execute, init_workspace, preview, rollback_info, workspace_root, workspace_snapshot, workspace_status
 
 
 DEFAULT_LIMIT = 200
@@ -246,9 +251,47 @@ def cmd_export(args: argparse.Namespace) -> tuple[Any, dict[str, Any]]:
     return {"path": str(output), "rows": len(data)}, meta
 
 
+
+def cmd_list_views(args: argparse.Namespace) -> tuple[Any, dict[str, Any]]:
+    config = connection_config()
+    database = validate_identifier(args.database or config.get("database", ""), "database")
+    sql = "SELECT table_name, check_option, is_updatable, definer, security_type FROM information_schema.views WHERE table_schema = %s ORDER BY table_name"
+    cols, rows, elapsed = execute(config, sql, [database])
+    return [dict(zip(cols, row)) for row in rows], {"database": database, "elapsed_ms": elapsed}
+
+
+def cmd_show_create_table(args: argparse.Namespace) -> tuple[Any, dict[str, Any]]:
+    config = connection_config()
+    database = validate_identifier(args.database or config.get("database", ""), "database")
+    table = validate_identifier(args.table, "table")
+    cols, rows, elapsed = execute(config, f"SHOW CREATE TABLE `{database}`.`{table}`", [])
+    return dict(zip(cols, rows[0])) if rows else {}, {"database": database, "table": table, "elapsed_ms": elapsed}
+
+
+def cmd_list_routines(args: argparse.Namespace) -> tuple[Any, dict[str, Any]]:
+    config = connection_config()
+    database = validate_identifier(args.database or config.get("database", ""), "database")
+    routine_type = args.type.upper() if args.type else None
+    sql = "SELECT routine_name, routine_type, data_type, routine_definition, definer, security_type, created, last_altered FROM information_schema.routines WHERE routine_schema = %s"
+    params: list[str] = [database]
+    if routine_type:
+        sql += " AND routine_type = %s"; params.append(routine_type)
+    sql += " ORDER BY routine_type, routine_name"
+    cols, rows, elapsed = execute(config, sql, params)
+    return [dict(zip(cols, row)) for row in rows], {"database": database, "elapsed_ms": elapsed}
+
+
+def cmd_show_create_routine(args: argparse.Namespace) -> tuple[Any, dict[str, Any]]:
+    config = connection_config()
+    database = validate_identifier(args.database or config.get("database", ""), "database")
+    name = validate_identifier(args.name, "routine")
+    routine_type = args.type.upper()
+    cols, rows, elapsed = execute(config, f"SHOW CREATE {routine_type} `{database}`.`{name}`", [])
+    return dict(zip(cols, rows[0])) if rows else {}, {"database": database, "routine": name, "type": routine_type, "elapsed_ms": elapsed}
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description="Safe read-only MySQL client")
     root.add_argument("--audit-log")
+    root.add_argument("--workspace-dir", help="isolated directory for run artifacts and automatic audit logs")
     sub = root.add_subparsers(dest="command", required=True)
     config = sub.add_parser("config"); config_sub = config.add_subparsers(dest="config_command", required=True); config_sub.add_parser("validate")
     sub.add_parser("ping"); sub.add_parser("list-databases")
@@ -258,14 +301,46 @@ def parser() -> argparse.ArgumentParser:
     for name in ("query", "explain", "export"):
         item = sub.add_parser(name); item.add_argument("--sql-file", required=True); item.add_argument("--params-json"); item.add_argument("--limit", type=int)
         if name == "export": item.add_argument("--format", choices=("csv", "jsonl"), required=True); item.add_argument("--output", required=True)
+    views = sub.add_parser("list-views"); views.add_argument("--database")
+    table_ddl = sub.add_parser("show-create-table"); table_ddl.add_argument("--database"); table_ddl.add_argument("--table", required=True)
+    routines = sub.add_parser("list-routines"); routines.add_argument("--database"); routines.add_argument("--type", choices=("procedure", "function"))
+    routine_ddl = sub.add_parser("show-create-routine"); routine_ddl.add_argument("--database"); routine_ddl.add_argument("--type", choices=("procedure", "function"), required=True); routine_ddl.add_argument("--name", required=True)
+    workspace = sub.add_parser("workspace", help="manage an isolated run-artifact workspace")
+    workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)
+    init = workspace_sub.add_parser("init"); init.add_argument("--workspace-dir")
+    status = workspace_sub.add_parser("status"); status.add_argument("--workspace-dir")
+    snapshot = workspace_sub.add_parser("snapshot"); snapshot.add_argument("--workspace-dir"); snapshot.add_argument("--message")
+    preview_parser = sub.add_parser("preview", help="classify SQL and create a confirmation record")
+    preview_parser.add_argument("--sql-file", required=True); preview_parser.add_argument("--params-json"); preview_parser.add_argument("--workspace-dir")
+    execute_parser = sub.add_parser("execute", help="execute approved DML or DDL inside a transaction when supported")
+    execute_parser.add_argument("--sql-file", required=True); execute_parser.add_argument("--params-json"); execute_parser.add_argument("--workspace-dir")
+    execute_parser.add_argument("--run-id", required=True); execute_parser.add_argument("--confirm"); execute_parser.add_argument("--rollback-sql-file"); execute_parser.add_argument("--backup-file"); execute_parser.add_argument("--commit", action="store_true")
+    rollback_parser = sub.add_parser("rollback", help="locate an archived rollback artifact")
+    rollback_parser.add_argument("--run-id", required=True); rollback_parser.add_argument("--workspace-dir")
     return root
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     started, error = time.monotonic(), None
+    if not args.audit_log and args.command in {"ping", "list-databases", "list-tables", "describe-table", "query", "explain", "export", "list-views", "show-create-table", "list-routines", "show-create-routine"}:
+        args.audit_log = str(workspace_root(getattr(args, "workspace_dir", None)) / "runs" / "commands.jsonl")
     try:
-        if args.command == "config": data, meta = cmd_config(args)
+        if args.command == "workspace":
+            data, meta = (init_workspace(args) if args.workspace_command == "init" else workspace_snapshot(args) if args.workspace_command == "snapshot" else workspace_status(args))
+        elif args.command == "preview":
+            try: data, meta = preview(args)
+            except (OSError, ValueError, json.JSONDecodeError) as exc: raise CliError("PREVIEW_FAILED", str(exc)) from exc
+        elif args.command == "execute":
+            try: data, meta = controlled_execute(args)
+            except (OSError, ValueError, json.JSONDecodeError) as exc: raise CliError("EXECUTION_REJECTED", str(exc)) from exc
+        elif args.command == "rollback":
+            data, meta = rollback_info(args)
+        elif args.command == "list-views": data, meta = cmd_list_views(args)
+        elif args.command == "show-create-table": data, meta = cmd_show_create_table(args)
+        elif args.command == "list-routines": data, meta = cmd_list_routines(args)
+        elif args.command == "show-create-routine": data, meta = cmd_show_create_routine(args)
+        elif args.command == "config": data, meta = cmd_config(args)
         elif args.command == "ping": data, meta = cmd_ping(args)
         elif args.command == "list-databases": data, meta = cmd_list_databases(args)
         elif args.command == "list-tables": data, meta = cmd_list_tables(args)
