@@ -1,6 +1,6 @@
 ---
 name: tencent-exmail
-description: "当用户要求通过腾讯企业邮箱发送、搜索、查看、筛选、总结邮件、下载附件或监控新邮件时使用。应在隔离工作区调用随附的 Python SMTP/IMAP 命令；不用于 Gmail、Outlook 或不涉及邮箱操作的普通邮件文案。"
+description: "当用户要求通过腾讯企业邮箱发送、搜索、查看、筛选、总结邮件、下载附件、标记已读/未读、保存本地草稿或监控新邮件时使用。应在隔离工作区调用随附的 Python SMTP/IMAP 命令；不用于 Gmail、Outlook 或不涉及邮箱操作的普通邮件文案。"
 ---
 
 # 腾讯企业邮箱邮件操作
@@ -20,7 +20,7 @@ description: "当用户要求通过腾讯企业邮箱发送、搜索、查看、
 
 ## 必要工作流
 
-1. 确定操作类型：`send`、`search`、`read`、`download` 或 `run-job`。执行前读取 [references/agent-workflow.md](references/agent-workflow.md)，其中规定了必填输入、准确命令、授权边界和预期输出。
+1. 确定操作类型：`send`、`search`、`read`、`download`、`mark`、`draft` 或 `run-job`。执行前读取 [references/agent-workflow.md](references/agent-workflow.md)，其中规定了必填输入、准确命令、授权边界和预期输出。
 2. 除非用户明确继续已有任务，否则创建一个任务工作区。在本技能根目录执行 `python scripts/create_workspace.py <任务名> --description "<需求范围>"`；后续只在生成的 `workspaces/<任务名>/` 中工作。
 3. 将单次任务的筛选规则存入 `rules/`，将输出存入工作区规定位置。仅在新建或修改搜索/监控 JSON 文件时读取 [references/rule-schema.md](references/rule-schema.md)。
 4. 只在任务工作区运行 `app/scripts/mail.py`。脚本会在加载凭据、连接邮箱或处理文件前检查整个 `workspaces/` 临时工作区的占用；默认阈值由 `config/workspace-policy.json` 的 `workspace_size_limit_mb` 控制，为 `500` MB。超限时除 `check-storage` 外的命令会安全停止，不写入结果、不连接邮箱。一次性需求不得修改 `core/`；仅当用户明确要求沉淀为通用能力时，才将已测试的改动提升至 `core/`。
@@ -28,7 +28,7 @@ description: "当用户要求通过腾讯企业邮箱发送、搜索、查看、
 
 ## 授权与范围
 
-- 发送、下载、覆盖文件和任何定时操作均属于外部副作用。执行实际命令前，确认用户当前请求已明确授权收件人或规则、正文或附件集合以及目标路径；确认后才使用脚本的确认参数。
+- 发送、下载、标记已读/未读、覆盖文件和任何定时操作均属于外部副作用。`draft` 仅保存当前工作区的本地草稿，不会发送或写入远程草稿箱。执行实际命令前，确认用户当前请求已明确授权收件人或规则、正文或附件集合以及目标路径；确认后才使用脚本的确认参数。
 - 只搜索和读取用户指定的邮箱目录与筛选条件。规则范围很宽时，拉取内容前先说明范围。只分析已返回的邮件；不得因为无关邮件可能有价值而扩大查询。
 - 智能体不得主动要求用户在对话中粘贴凭据。用户自行提供邮箱地址和密码/客户端专用密码，并明确要求保存时，只能写入被忽略的本地 `config/config.json` 的 `account.email` 与 `account.password`；不得在回复、命令参数、日志、规则、工作区、聊天摘要或其他持久化记录中回显、复制或保留秘密。写入后只报告配置已更新。配置缺失或无效时，也可指导用户自行更新本地 `config/config.json` 或 `EMAIL_SKILL_PASSWORD` 环境变量。
 - 默认下载到工作区 `downloads/`。工作区外路径必须由用户明确指定，并添加 `--allow-external-output`。

@@ -1,6 +1,6 @@
 # 自动化 Skills
 
-这是一个面向 Codex 的中文自动化 skill 集合，覆盖浏览器任务、邮件处理和 MySQL 只读查询。每个 skill 均将稳定的操作逻辑、配置说明和测试放在独立目录中，任务产生的数据不进入仓库。
+这是一个面向 Codex 的中文自动化 skill 集合，覆盖浏览器、邮件、MySQL 与 Office/PDF 文档处理。每个 skill 均将稳定的操作逻辑、配置说明和测试放在独立目录中，任务产生的数据不进入仓库。
 
 项目仍在修改和验证中。
 
@@ -10,7 +10,10 @@
 | --- | --- | --- |
 | [`browser/browser-automation`](browser/browser-automation) | 基于 Edge 或 Chrome MCP 的浏览、表单操作、数据导出与工作流执行 | [`SKILL.md`](browser/browser-automation/SKILL.md) |
 | [`email`](email) | Gmail、QQ 邮箱与腾讯企业邮箱的发送、搜索、读取和附件处理 | 各子目录的 `SKILL.md` |
-| [`mysql`](mysql) | MySQL 连通性检查、结构发现与受策略限制的只读查询 | [`SKILL.md`](mysql/SKILL.md) |
+| [mysql](mysql) | MySQL 结构发现、查询与受控变更 | [SKILL.md](mysql/SKILL.md) |
+| [word](word) | Word .docx 的生成、检查、模板填充与工作区管理 | [SKILL.md](word/SKILL.md) |
+| [pdf](pdf) | PDF 的生成、检查、渲染、合并与工作区管理 | [SKILL.md](pdf/SKILL.md) |
+| [xcel](excel) | Excel .xlsx 的生成、检查、模板填充与工作区管理 | [SKILL.md](excel/SKILL.md) |
 
 ## 安全边界
 

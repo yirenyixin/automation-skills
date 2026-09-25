@@ -1,0 +1,4 @@
+interface:
+  display_name: "Word"
+  short_description: "安全读取和生成 Word 文档"
+

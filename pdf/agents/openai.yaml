@@ -1,0 +1,3 @@
+interface:
+  display_name: "PDF"
+  short_description: "安全读取、生成和校验 PDF 文件"

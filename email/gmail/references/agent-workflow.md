@@ -51,6 +51,26 @@ python app/scripts/mail.py read --rule rules/<名称>.json
 
 有返回结果时，仅总结用户允许的字段。若用户要求提取待办、联系人、日期、金额或风险，每项重要结论都应标明来源 UID；不确定内容必须明确标注，不能补全或猜测缺失事实。
 
+## 标记已读或未读
+
+这是会修改远程邮箱状态的操作。执行前必须取得用户对**准确邮箱目录、UID 列表和目标状态**的当前明确授权；不得将“查看邮件”或“搜索未读”视为标记授权。UID 来自已批准范围内的搜索或读取结果。
+
+```powershell
+python app/scripts/mail.py --request-note "将指定邮件标为已读" mark --mailbox INBOX --uid <UID> --read
+python app/scripts/mail.py --request-note "将指定邮件标为未读" mark --mailbox INBOX --uid <UID> --unread
+```
+
+可重复传入 `--uid`。命令以 UID 精确设置或清除 IMAP `\\Seen` 标记；成功仅表示服务器接受了状态更新。网页端若按会话聚合，仍可能因同一会话的其他未读邮件显示加粗，不能据此推断该 UID 的更新失败。
+
+## 保存草稿
+
+`draft` 只在当前工作区的 `drafts/` 保存 JSON 草稿，不发送邮件，也不写入远程“草稿箱”。必填输入：至少一个收件人、主题和草稿名称。附件必须已经位于当前工作区。已有同名草稿默认不覆盖。
+
+```powershell
+python app/scripts/mail.py --request-note "保存待审核邮件草稿" draft --name <名称> --to recipient@example.com --subject "<主题>" --text "<正文>"
+```
+
+可按需使用 `--cc`、`--html` 和 `--attachment`；只有用户明确要求覆盖同名草稿时才可传 `--overwrite`。草稿内容属于本地任务数据，报告时仅给出相对路径与摘要，不回显完整正文或密送信息。
 ## 下载附件
 
 必填输入：用户批准的规则和目标目录。先执行预览：

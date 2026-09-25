@@ -196,6 +196,41 @@ def search(config: dict, workspace: Path, rule_name: str, limit: int, include_bo
     return search_with_metadata(config, workspace, rule_name, limit, include_body, full_body)[0]
 
 
+def update_read_state(config: dict, mailbox: str, uids: list[str], mark_read: bool) -> dict:
+    """Set or clear IMAP's Seen flag for explicit UIDs."""
+    if not mailbox or any(character in mailbox for character in "\r\n"):
+        fail("邮箱目录无效。")
+    normalized = []
+    for uid in uids:
+        if not isinstance(uid, str) or not re.fullmatch(r"[1-9][0-9]*", uid):
+            fail("UID 必须是正整数。")
+        if uid not in normalized:
+            normalized.append(uid)
+    if not normalized:
+        fail("至少需要一个 UID。")
+    imap, account = config["imap"], config["account"]
+    client = None
+    try:
+        client = imaplib.IMAP4_SSL(imap["host"], int(imap["port"]), ssl_context=ssl.create_default_context(), timeout=30)
+        client.login(account["email"], account["password"])
+        status, _ = client.select(mailbox, readonly=False)
+        if status != "OK":
+            fail("无法打开指定邮箱目录。")
+        command = "+FLAGS.SILENT" if mark_read else "-FLAGS.SILENT"
+        for uid in normalized:
+            status, _ = client.uid("store", uid, command, r"(\Seen)")
+            if status != "OK":
+                fail("无法更新指定邮件的已读状态。")
+        return {"mailbox": mailbox, "uids": normalized, "read": mark_read}
+    except (OSError, imaplib.IMAP4.error) as exc:
+        _imap_failure(exc)
+    finally:
+        if client is not None:
+            try:
+                client.logout()
+            except Exception:
+                pass
+
 def save_result(workspace: Path, name: str, items: list[dict]) -> Path:
     destination = workspace / "outputs" / name
     destination.parent.mkdir(exist_ok=True)

@@ -11,7 +11,8 @@ from pathlib import Path
 from mail_core.audit import write_audit
 from mail_core.common import fail, load_json, safe_child, skill_root, workspace_root
 from mail_core.config import load_config
-from mail_core.reader import download, save_result, search
+from mail_core.reader import download, save_result, search, update_read_state
+from mail_core.drafts import create_draft
 from mail_core.sender import send
 from mail_core.storage import inspect_workspace_storage
 
@@ -31,6 +32,21 @@ def parser() -> argparse.ArgumentParser:
     send_parser.add_argument("--max-attachment-mb", type=int, default=20)
     send_parser.add_argument("--timeout", type=int, default=30)
     send_parser.add_argument("--confirm-send", action="store_true", help="明确提交给 SMTP")
+    mark_parser = actions.add_parser("mark", help="按 UID 标记邮件已读或未读")
+    mark_parser.add_argument("--uid", action="append", required=True, help="IMAP UID，可重复指定")
+    mark_parser.add_argument("--mailbox", default="INBOX")
+    mark_state = mark_parser.add_mutually_exclusive_group(required=True)
+    mark_state.add_argument("--read", action="store_true", help="设置 Seen（已读）")
+    mark_state.add_argument("--unread", action="store_true", help="清除 Seen（未读）")
+    draft_parser = actions.add_parser("draft", help="保存本地草稿；不会发送或写入远程邮箱")
+    draft_parser.add_argument("--name", required=True, help="草稿文件名，保存于工作区 drafts/ 下")
+    draft_parser.add_argument("--to", action="append", required=True)
+    draft_parser.add_argument("--cc", action="append", default=[])
+    draft_parser.add_argument("--subject", required=True)
+    draft_parser.add_argument("--text", default="")
+    draft_parser.add_argument("--html")
+    draft_parser.add_argument("--attachment", action="append", default=[])
+    draft_parser.add_argument("--overwrite", action="store_true")
     for name, help_text in (("search", "按规则搜索邮件"), ("read", "读取规则中匹配邮件的正文预览")):
         item = actions.add_parser(name, help=help_text)
         item.add_argument("--rule", required=True, help="相对于工作区的 JSON 规则文件")
@@ -83,6 +99,18 @@ def main() -> None:
             write_json(storage)
             return
         config = load_config(Path(__file__))
+        if args.action == "mark":
+            result = update_read_state(config, args.mailbox, args.uid, args.read)
+            result["工作区容量检查"] = storage
+            audit(workspace, args, "更新邮件已读状态", {"邮箱目录": args.mailbox, "UID": result["uids"], "目标状态": "已读" if args.read else "未读"}, "成功", {"数量": len(result["uids"])})
+            write_json(result)
+            return
+        if args.action == "draft":
+            result = create_draft(workspace, args)
+            result["工作区容量检查"] = storage
+            audit(workspace, args, "保存草稿", {"草稿": result["draft"], "收件人数": result["recipient_count"], "抄送人数": result["cc_count"], "主题": args.subject, "纯文本长度": len(args.text), "HTML长度": len(args.html or ""), "附件数量": result["attachment_count"]}, "成功", {"草稿文件": result["draft"]})
+            write_json(result)
+            return
         if args.action == "send":
             result = send(config, args, workspace)
             result["工作区容量检查"] = storage
