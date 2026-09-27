@@ -1,0 +1,9 @@
+{
+  "name": "run-guard",
+  "version": "1.0.0",
+  "description": "在工具失败后阻止以承诺下一步的文字提前结束，并要求模型实际重试或明确报告失败。",
+  "author": {"name": "本地工作流"},
+  "keywords": ["workbuddy", "observability", "stop-hook", "local-model"],
+  "hooks": "./hooks/hooks.json",
+  "defaultEnabled": true
+}

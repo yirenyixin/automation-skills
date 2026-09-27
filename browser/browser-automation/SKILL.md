@@ -5,6 +5,22 @@ description: 通过可用的 Edge 或 Chrome MCP，以 DOM 优先且可验证的
 
 # 浏览器自动化
 
+## Windows 命令与失败续行（强制）
+
+- 在 Windows 上，PowerShell 命令必须完整交给 PowerShell 执行，Bash 命令必须完整交给 Bash 执行；不得混用两种 shell 的管道、重定向或内置命令。
+- `Select-String`、`Where-Object`、`ForEach-Object`、`Get-*`、`Test-Path` 等 PowerShell 命令不得放进 Bash 命令中。
+- 不要先用临时拼接的 `bash codex mcp list ... | Select-String ...` 检查 MCP。需要配置浏览器 MCP 时，直接调用本 skill 提供的 PowerShell 脚本；脚本本身会进行幂等检查：
+
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File "${CODEBUDDY_SKILL_DIR}/scripts/setup_browser_mcp.ps1" -Browser edge
+  ```
+
+- 任一工具或命令返回非零退出码后，必须在同一轮中完成以下二选一，不能只在思考中说明：
+  1. 如果已确认是 shell 混用、路径引用或参数转义错误，修正后实际重试一次，并读取重试结果；
+  2. 如果不能安全重试，明确输出失败步骤、退出码、原始错误和建议动作，然后把任务标记为失败或等待用户处理。
+- “让我先……”“接下来我会……”只是计划，不是执行结果。未产生新的工具调用结果时，不得用这类句子结束任务，也不得声称正在继续。
+- 若 MCP 注册成功但当前 WorkBuddy 任务无法刷新工具列表，应明确说明“注册已成功，当前任务不会动态加载新 MCP，需要新建 WorkBuddy 任务后继续”，并附上注册命令的实际结果；这属于有原因的暂停，不是无说明停止。
+
 使用此 skill 通过可用的 Edge 或 Chrome MCP 执行浏览器任务。优先使用其结构化浏览器操作、页面 DOM、无障碍信息和脚本执行能力，避免依赖视觉推理或坐标点击。
 
 ## 每次运行均从隔离工作区开始
@@ -12,7 +28,7 @@ description: 通过可用的 Edge 或 Chrome MCP，以 DOM 优先且可验证的
 不得直接修改此 skill 的文件、输入文件或既有运行目录。先创建运行目录：
 
 ```powershell
-node scripts/workspace_manager.mjs create --runs-dir runs --task <short-task-name>
+node "${CODEBUDDY_SKILL_DIR}/scripts/workspace_manager.mjs" create --runs-dir runs --task <short-task-name>
 ```
 
 该命令会输出包含 `runRoot`、`workRoot` 和 `runId` 的 JSON。使用 `workspace_manager.mjs import` 导入用户提供的输入；输出、下载、临时文件和派生文件只能写入本次运行的 `work/` 目录。
@@ -24,9 +40,9 @@ node scripts/workspace_manager.mjs create --runs-dir runs --task <short-task-nam
 执行浏览器操作前，先检查当前会话实际暴露的工具目录，只能调用目录中返回的精确工具名和参数。不得尝试调用 `browser`、`edge`、`chrome` 或其他未在当前工具目录出现的推测名称。
 
 - 若当前会话有来自 `chrome-devtools` 或 `edge-devtools` 的实际 MCP 工具，读取其工具说明并使用其精确名称与参数。
-- 若没有对应工具，先运行 `scripts/setup_browser_mcp.ps1` 注册实际 MCP；Chrome 使用 `-Browser chrome`，Edge 使用 `-Browser edge`。该脚本使用 Google 维护的 `chrome-devtools-mcp`；Edge 通过本机 DevTools 调试端口连接。
-- 注册或变更 MCP 后，立即停止当前浏览器任务并告知用户**新开 Codex 会话**。当前会话不能假定工具清单会刷新，更不能猜测新工具名称。
-- 使用 Edge 时，如未启动调试端口，在当前运行目录下创建独立 profile 后运行：`powershell -File scripts/setup_browser_mcp.ps1 -Browser edge -StartEdge -EdgeProfilePath <runRoot>\edge-profile`。不得连接用户日常 Edge 配置文件。
+- 若没有对应工具，直接通过 PowerShell 运行 `"${CODEBUDDY_SKILL_DIR}/scripts/setup_browser_mcp.ps1"` 注册实际 MCP；Chrome 使用 `-Browser chrome`，Edge 使用 `-Browser edge`。该脚本使用 Google 维护的 `chrome-devtools-mcp`；Edge 通过本机 DevTools 调试端口连接。
+- 注册或变更 MCP 后，立即停止当前浏览器任务并告知用户**新建 WorkBuddy 任务**。当前会话不能假定工具清单会刷新，更不能猜测新工具名称。
+- 使用 Edge 时，如未启动调试端口，在当前运行目录下创建独立 profile 后运行：`powershell -NoProfile -ExecutionPolicy Bypass -File "${CODEBUDDY_SKILL_DIR}/scripts/setup_browser_mcp.ps1" -Browser edge -StartEdge -EdgeProfilePath "<runRoot>\edge-profile"`。不得连接用户日常 Edge 配置文件。
 ## 浏览器操作流程
 
 1. 选择用户明确指定的浏览器。若未指定，则选择可用的 Edge 或 Chrome MCP 会话，并在运行日志中记录选择结果。

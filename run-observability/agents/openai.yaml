@@ -1,0 +1,3 @@
+interface:
+  display_name: "运行可观测性"
+  short_description: "记录任务阶段、错误原因与异常中断线索"

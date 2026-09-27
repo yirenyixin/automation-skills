@@ -10,11 +10,15 @@
 | --- | --- | --- |
 | [`browser/browser-automation`](browser/browser-automation) | 基于 Edge 或 Chrome MCP 的浏览、表单操作、数据导出与工作流执行 | [`SKILL.md`](browser/browser-automation/SKILL.md) |
 | [`email`](email) | Gmail、QQ 邮箱与腾讯企业邮箱的发送、搜索、读取和附件处理 | 各子目录的 `SKILL.md` |
-| [mysql](mysql) | MySQL 结构发现、查询与受控变更 | [SKILL.md](mysql/SKILL.md) |
-| [word](word) | Word .docx 的生成、检查、模板填充与工作区管理 | [SKILL.md](word/SKILL.md) |
-| [pdf](pdf) | PDF 的生成、检查、渲染、合并与工作区管理 | [SKILL.md](pdf/SKILL.md) |
-| [xcel](excel) | Excel .xlsx 的生成、检查、模板填充与工作区管理 | [SKILL.md](excel/SKILL.md) |
+| [`mysql`](mysql) | MySQL 结构发现、查询与受控变更 | [`SKILL.md`](mysql/SKILL.md) |
+| [`word`](word) | Word `.docx` 的生成、检查、模板填充与工作区管理 | [`SKILL.md`](word/SKILL.md) |
+| [`pdf`](pdf) | PDF 的生成、检查、渲染、合并与工作区管理 | [`SKILL.md`](pdf/SKILL.md) |
+| [`excel`](excel) | Excel `.xlsx` 的生成、检查、模板填充与工作区管理 | [`SKILL.md`](excel/SKILL.md) |
+| [`run-observability`](run-observability) | 受控运行的命令执行、状态检查与故障诊断 | [`SKILL.md`](run-observability/SKILL.md) |
 
+## WorkBuddy 插件
+
+- [`run-guard`](workbuddy-plugins/run-guard)：拦截不安全的任务终止操作并保留运行状态。
 ## 安全边界
 
 - **不提交真实凭据。** 邮箱账号、密码、客户端授权码、OAuth client secret、访问令牌和刷新令牌只能保存在本地配置或环境变量中。
